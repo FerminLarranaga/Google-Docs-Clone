@@ -8,7 +8,7 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
     cors: {
-        origin: 'https://google-docs--clone.herokuapp.com',
+        origin: process.env.SOCKET_ORIGIN,
         methods: ['GET', 'POST', 'PUT', 'DELETE']
     }
 })
@@ -21,6 +21,10 @@ if (process.env.NODE_ENV === 'production'){
     app.get('*', (req, res) => {
         res.sendFile(path.join(__dirname, '/client/build/index.html'));
     })
+} else {
+    app.get('/', (req, res) => {
+        res.send('WORKING!');
+    })
 }
 
 const getDocument = async (id) => {
@@ -31,8 +35,8 @@ const getDocument = async (id) => {
         console.log(docData);
 
         if (!docData){
-            await dbClient.insertOne({_id: id, content: {text: ''}});
-            return {text: ''}
+            await dbClient.insertOne({_id: id, content: {}});
+            return ''
         }
         
         // await dbClient.close();
@@ -44,13 +48,13 @@ const getDocument = async (id) => {
     }*/
 }
 
-const saveChanges = async (id, newText) => {
+const saveChanges = async (id, document) => {
     try {
         console.log('UPDATED');
         // await dbClient.connect();
         const dbClient = await getConnectedClient();
-        const res = await dbClient.updateOne({_id: id}, {$set: {content: {text: newText}}});
-        console.log(res);
+        await dbClient.updateOne({_id: id}, {$set: {content: document}});
+        console.log(document);
         // await dbClient.close();
     } catch (error) {
         console.log(error);
@@ -66,12 +70,12 @@ io.on('connection', (socket) => {
 
         socket.join(id);
 
-        socket.on('send-changes', newText => {
-            socket.broadcast.to(id).emit('recieve-changes', {text: newText});
+        socket.on('send-changes', delta => {
+            socket.broadcast.to(id).emit('recieve-changes', delta);
         })
 
-        socket.on('save-changes', newText => {
-            saveChanges(id, newText);
+        socket.on('save-changes', document => {
+            saveChanges(id, document);
         })
     })
 });
